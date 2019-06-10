@@ -179,6 +179,32 @@ class CarsDotCom(Source):
         if auto_start:
             self.find_new_listings()
 
+    def __binsearch(self, target: int, opts: list, data_conversion=lambda x: x) -> int:
+        """Finds the closest value to the target in the given list of options."""
+        left = 0
+        right = len(opts)
+        mid = -1
+
+        while right > left:
+            mid = left + (right - left) // 2
+
+            if opts[mid] == target:
+                return mid
+            elif data_conversion(opts[mid]) < target:
+                left = mid + 1
+                continue
+            else:
+                right = mid
+
+        if data_conversion(opts[mid]) != target:
+            return left - 1  # Always round down, don't show the user something out of their price range
+        else:
+            return mid
+
+    def __insert_dollar_sign_and_commas(self, data: int) -> str:
+        """Takes a string of numbers and inserts the '$' and ','"""
+        return '${:,}'.format(data)
+
     def find_new_listings(self):
         # TODO
         for i, s in self.searches:
@@ -197,8 +223,77 @@ class CarsDotCom(Source):
                 distance_drop = Select(self.browser.find_element_by_css_selector("select[name='radius']"))
 
                 # endregion
+
+                is_model = isinstance(model, Model)
+
+                make_drop.select_by_visible_text(s.make)
+                model_drop.select_by_visible_text(model.name if is_model else model)
+
+                # region Selects the closest price point in the price dropdown
+
+                if s.price_end > 0:
+                    closest = s.price_end
+                    opts = price_drop.options
+
+                    closest = opts[self.__binsearch(closest, sorted(opts,
+                                                                    key=lambda x: self.__remove_dollar_and_comma(x.text)),
+                                                    lambda x: self.__remove_dollar_and_comma(x.text))]
+
+                    price_drop.select_by_visible_text(self.__insert_dollar_sign_and_commas(closest))
+
+                # endregion
+
+                # region Selects the closest distance point in the distance dropdown
+
+                closest = s.distance
+                opts = distance_drop.options
+
+                closest = opts[self.__binsearch(closest, sorted(opts,
+                                                                key=lambda x: x.text.split()[0]),
+                                                lambda x: x.text.split()[0])]
+
+                price_drop.select_by_visible_text(self.__insert_dollar_sign_and_commas(closest))
+
+                # endregion
+
+                self.browser.find_element_by_css_selector("input[name='zip']").send_keys(str(s.zip))
+
+                # Clicks the search button
+                self.browser.find_element_by_css_selector("input[value='Search']").click()
+
+                # region Filters the result
+
+                # region Handles the lower price limit
+
+                price_drop = Select(self.browser.find_element_by_css_selector("select[name='prMn']"))
+
+                if s.price_start > 0:
+                    closest = s.price_start
+                    opts = price_drop.options
+
+                    closest = opts[self.__binsearch(closest, sorted(opts,
+                                                                    key=lambda x: self.__remove_dollar_and_comma(
+                                                                        x.text)),
+                                                    lambda x: self.__remove_dollar_and_comma(x.text))]
+
+                    price_drop.select_by_visible_text(self.__insert_dollar_sign_and_commas(closest))
+
+                # endregion
+
+                # region Handles the year ranges
+
+                # TODO
+
+                # endregion
+
+                # endregion
+
         pass
 
 
 if __name__ == "__main__":
-    guru = CarGurus([Search("Toyota", ["Camry", "Avalon"], price_end=8000)])
+
+    searches = [Search("Toyota", ["Camry", "Avalon"], price_end=8000)]
+
+    guru = CarGurus(searches)
+    cars = CarsDotCom(searches)
