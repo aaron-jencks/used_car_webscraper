@@ -56,7 +56,7 @@ class Source:
         if auto_start:
             self.find_new_listings()
 
-    def __remove_dollar_and_comma(self, data: str) -> int:
+    def remove_dollar_and_comma(self, data: str) -> int:
         """Removes the $ and , from the labels on the display for the price sliders."""
         return int(data.replace('$', '').replace(',', ''))
 
