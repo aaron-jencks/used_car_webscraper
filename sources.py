@@ -1,7 +1,10 @@
 from display_util.string_display_util import print_notification
 from web_util.source_util import Source, Search, Model, Car
+from web_util.site_utils import *
 
-from selenium.webdriver.support.ui import Select
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 
 from tqdm import tqdm
@@ -34,7 +37,8 @@ class CarGurus(Source):
         """Runs through a series of search result pages and scrapes car objects off of them,
         appending them to a list of cars, if they don't already exist."""
 
-        end_page = self.browser.find_element_by_class_name("toPage").text
+        end_page = WebDriverWait(self.browser, self.timeout_delay).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "toPage"))).text
 
         for i in range(int(end_page)):
             # Iterates through all of the pages
@@ -48,10 +52,10 @@ class CarGurus(Source):
                 price = stats[0].find_element_by_class_name(
                     "cg-dealFinder-priceAndMoPayment").find_element_by_tag_name("span").text
 
-                c = Car(title[1], title[2], int(title[0]),                                              # make, model, year
-                        self.remove_dollar_and_comma(mileage) if mileage != "N/A" else -1,            # mileage
-                        self.remove_dollar_and_comma(price) if price != "No Price Listed" else -1,    # price
-                        self.__get_url(int(car.get_attribute("onclick").split()[1][:-1])))              # url
+                c = Car(title[1], title[2], int(title[0]),                                       # make, model, year
+                        remove_dollar_and_comma(mileage) if mileage != "N/A" else -1,            # mileage
+                        remove_dollar_and_comma(price) if price != "No Price Listed" else -1,    # price
+                        self.__get_url(int(car.get_attribute("onclick").split()[1][:-1])))       # url
 
                 if c not in self.cars_db:
                     self.cars_db.append(c)
@@ -119,12 +123,13 @@ class CarGurus(Source):
 
                 # region Price
 
-                width = self.browser.find_element_by_class_name("ui-slider-range").size["width"]
+                width = WebDriverWait(self.browser, self.timeout_delay).until(
+                                      EC.presence_of_element_located((By.CLASS_NAME, "ui-slider-range"))).size["width"]
 
-                lower_bound = self.remove_dollar_and_comma(
+                lower_bound = remove_dollar_and_comma(
                     self.browser.find_element_by_id("priceSliderLowerBoundaryLabel").text)
 
-                upper_bound = self.remove_dollar_and_comma(
+                upper_bound = remove_dollar_and_comma(
                     self.browser.find_element_by_id("priceSliderUpperBoundaryLabel").text)
 
                 slider_low = self.browser.find_element_by_id("sliderHandle1Price")
@@ -148,10 +153,10 @@ class CarGurus(Source):
 
                 # width shouldn't have changed from the previous one
 
-                lower_bound = self.remove_dollar_and_comma(
+                lower_bound = remove_dollar_and_comma(
                     self.browser.find_element_by_id("mileageSliderLowerBoundaryLabel").text.split()[0])
 
-                upper_bound = self.remove_dollar_and_comma(
+                upper_bound = remove_dollar_and_comma(
                     self.browser.find_element_by_id("mileageSliderUpperBoundaryLabel").text.split()[0])
 
                 # slider_low = self.browser.find_element_by_id("sliderHandle1mileage")
@@ -236,9 +241,9 @@ class CarsDotCom(Source):
                     opts = price_drop.options
 
                     closest = opts[self.__binsearch(closest, sorted(opts,
-                                                                    key=lambda x: self.remove_dollar_and_comma(x.text)
+                                                                    key=lambda x: remove_dollar_and_comma(x.text)
                                                                     if x.text != 'No Max Price' else -1),
-                                                    lambda x: self.remove_dollar_and_comma(x.text)
+                                                    lambda x: remove_dollar_and_comma(x.text)
                                                     if x.text != 'No Max Price' else -1)].text
 
                     price_drop.select_by_visible_text(closest)
@@ -265,28 +270,29 @@ class CarsDotCom(Source):
                 # Clicks the search button
                 self.browser.find_element_by_css_selector("input[value='Search']").click()
 
+                # self.browser.
+
                 # region Filters the result
 
                 # region Handles the lower price limit
 
-                price_drop = Select(self.browser.find_element_by_css_selector("select[name='prMn']"))
+                price_drop = Select(WebDriverWait(self.browser, self.timeout_delay).until(
+                                                  EC.presence_of_element_located((By.CSS_SELECTOR, "select[name='prMn']"))))
 
                 if s.price_start > 0:
                     closest = s.price_start
                     opts = price_drop.options
 
                     closest = opts[self.__binsearch(closest, sorted(opts,
-                                                                    key=lambda x: self.remove_dollar_and_comma(
+                                                                    key=lambda x: remove_dollar_and_comma(
                                                                         x.text)),
-                                                    lambda x: self.remove_dollar_and_comma(x.text))].text
+                                                    lambda x: remove_dollar_and_comma(x.text))].text
 
                     price_drop.select_by_visible_text(closest)
 
                 # endregion
 
                 # region Handles the year ranges
-
-                # TODO
 
                 ydrops = self.browser.find_elements_by_css_selector("select[name='yrId']")
 
@@ -322,22 +328,26 @@ class CarsDotCom(Source):
                 # region Handles the mileage
 
                 # TODO
-                mileage_list = [y for y in [x.find_element_by_class_name("radio__label") for x in
-                                self.browser.find_elements_by_class_name("radio")] if
-                                y.get_attribute("for").startswith("mlgId-")]
+                mileage_element = self.browser.find_element_by_id("mlgId")
+                mileage_radios = mileage_element.find_elements_by_css_selector("li.radio")
+                mileage_radios = [x for x in mileage_radios if
+                                  x.find_element_by_tag_name("input").get_attribute("id").startswith("mlgId-")]
+
+                mileage_list = [x.find_element_by_tag_name("label") for x in mileage_radios]
+                mileage_ids = [x.find_element_by_tag_name("input").get_attribute("id") for x in mileage_radios]
 
                 if (is_model and model.mileage > 0) or s.mileage > 0:
                     closest = model.mileage if is_model else s.mileage
 
-                    closest = mileage_list[self.__binsearch(closest, sorted(mileage_list,
+                    closest = mileage_ids[self.__binsearch(closest, sorted(mileage_list,
                                                                             key=lambda x: int(
-                                                                                self.remove_dollar_and_comma(
+                                                                                remove_dollar_and_comma(
                                                                                     x.text.split()[0]))),
                                                             lambda x: int(
-                                                                self.remove_dollar_and_comma(
+                                                                remove_dollar_and_comma(
                                                                     x.text.split()[0])))]
 
-                    # TODO get number after mlgId and use that to find the corresponding radio button.
+                    self.browser.find_element_by_css_selector("input[id='{}']".format(closest)).click()
 
                 # endregion
 
@@ -350,5 +360,5 @@ if __name__ == "__main__":
 
     searches = [Search("Toyota", ["Camry", "Avalon"], price_end=8000)]
 
-    # guru = CarGurus(searches)
+    guru = CarGurus(searches)
     cars = CarsDotCom(searches)
