@@ -50,15 +50,13 @@ class Source:
         self.searches = searches
         self.browser = webdriver.Firefox() if browser is None else browser
 
+        self.timeout_delay = 10
+
         self.cars_db = []
         self.new_cars = []
 
         if auto_start:
             self.find_new_listings()
-
-    def remove_dollar_and_comma(self, data: str) -> int:
-        """Removes the $ and , from the labels on the display for the price sliders."""
-        return int(data.replace('$', '').replace(',', ''))
 
     def on_new_listing(self, car: Car):
         # TODO: Have email me
