@@ -46,7 +46,8 @@ class EmailServer:
         """Stops the server, if it's running, otherwise does nothing"""
         if self.is_running:
             self.is_running = False
-            self.server.quit()
+            with self.server:
+                pass
 
     def send_mail(self, tgt: str, subj: str = "", msg: str = ""):
         """Sends an email if the server is running, if the server is not running, then puts it into the backlog"""

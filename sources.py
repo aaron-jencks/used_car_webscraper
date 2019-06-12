@@ -1,23 +1,24 @@
 from display_util.string_display_util import print_notification
-from web_util.source_util import Source, Search, Model, Car
+from web_util.source_util import EmailingSource, Search, Model, Car
 from web_util.site_utils import *
 
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.action_chains import ActionChains
 
 from tqdm import tqdm
 
 
-class CarGurus(Source):
-    def __init__(self, searches: list, browser=None, auto_start: bool = True):
-        super().__init__(searches, browser, auto_start=False)
+class CarGurus(EmailingSource):
+    def __init__(self, callback_email: str, searches: list, browser=None, auto_start: bool = True):
+        super().__init__(callback_email, searches, browser, auto_start=False)
 
         self.value_source_url = "https://www.cargurus.com/Cars/forsale"
 
         if auto_start:
-            self.find_new_listings()
+            self.start()
 
     def __find_price_percentage(self, price: int, lower: int, upper: int, pixel_width: float) -> float:
         """Computes the percent of the slider that the node should be at and returns it"""
@@ -175,14 +176,14 @@ class CarGurus(Source):
                 self.__find_car_list()
 
 
-class CarsDotCom(Source):
-    def __init__(self, searches: list, browser=None, auto_start: bool = True):
-        super().__init__(searches, browser, False)
+class CarsDotCom(EmailingSource):
+    def __init__(self, callback_email: str, searches: list, browser=None, auto_start: bool = True):
+        super().__init__(callback_email, searches, browser, auto_start=False)
 
         self.value_source_url = "https://www.cars.com"
 
         if auto_start:
-            self.find_new_listings()
+            self.start()
 
     def __binsearch(self, target: int, opts: list, data_conversion=lambda x: x) -> int:
         """Finds the closest value to the target in the given list of options."""
@@ -206,12 +207,47 @@ class CarsDotCom(Source):
         else:
             return mid
 
-    def __insert_dollar_sign_and_commas(self, data: int) -> str:
-        """Takes a string of numbers and inserts the '$' and ','"""
-        return '${:,}'.format(data)
+    def __find_car_list(self):
+        """Scrapes the search results for new listings and adds them to the list."""
+
+        try:
+            end_page = int(WebDriverWait(self.browser, self.timeout_delay).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "js-last-page"))).text)
+        except TimeoutException:
+            end_page = 1
+
+        for i in range(end_page):
+            next_btn = WebDriverWait(self.browser, self.timeout_delay).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "next-page")))
+
+            listings = self.browser.find_elements_by_class_name("shop-srp-listings__listing-container")
+
+            for l in listings:
+                title = l.find_element_by_class_name("listing-row__title").text.split()
+
+                make = title[1]
+                model = title[2]
+
+                year = int(title[0])
+
+                mileage = int(remove_dollar_and_comma(
+                    l.find_element_by_class_name("listing-row__mileage").text.split()[0]))
+
+                price = int(remove_dollar_and_comma(l.find_element_by_class_name("listing-row__price").text))
+
+                url = self.browser.current_url + \
+                    l.find_element_by_class_name("shop-srp-listings__listing").get_attribute("href")
+
+                c = Car(make, model, year, mileage, price, url)
+
+                if c not in self.cars_db:
+                    self.cars_db.append(c)
+                    self.on_new_listing(c)
+
+            if i < end_page - 1:
+                next_btn.click()
 
     def find_new_listings(self):
-        # TODO
         for i, s in enumerate(self.searches):
             for model in s.models:
                 self.browser.get(self.value_source_url)
@@ -240,13 +276,14 @@ class CarsDotCom(Source):
                     closest = s.price_end
                     opts = price_drop.options
 
-                    closest = opts[self.__binsearch(closest, sorted(opts,
-                                                                    key=lambda x: remove_dollar_and_comma(x.text)
-                                                                    if x.text != 'No Max Price' else -1),
-                                                    lambda x: remove_dollar_and_comma(x.text)
-                                                    if x.text != 'No Max Price' else -1)].text
+                    closest = self.__binsearch(closest, sorted(opts,
+                                                               key=lambda x: remove_dollar_and_comma(x.text)
+                                                               if x.text != 'No Max Price' else -1),
+                                               lambda x: remove_dollar_and_comma(x.text)
+                                               if x.text != 'No Max Price' else -1)
 
-                    price_drop.select_by_visible_text(closest)
+                    # price_drop.select_by_visible_text(closest)
+                    price_drop.select_by_index(closest - 1)
 
                 # endregion
 
@@ -255,13 +292,13 @@ class CarsDotCom(Source):
                 closest = s.distance
                 opts = distance_drop.options
 
-                closest = opts[self.__binsearch(closest, sorted(opts,
-                                                                key=lambda x: int(x.text.split()[0])
-                                                                if x.text != 'All Miles from' else -1),
-                                                lambda x: int(x.text.split()[0])
-                                                if x.text != 'All Miles from' else -1)].text
+                closest = self.__binsearch(closest, sorted(opts,
+                                                           key=lambda x: int(x.text.split()[0])
+                                                           if x.text != 'All Miles from' else -1),
+                                           lambda x: int(x.text.split()[0])
+                                           if x.text != 'All Miles from' else -1)
 
-                distance_drop.select_by_visible_text(closest)
+                distance_drop.select_by_index(closest - 1)
 
                 # endregion
 
@@ -283,12 +320,12 @@ class CarsDotCom(Source):
                     closest = s.price_start
                     opts = price_drop.options
 
-                    closest = opts[self.__binsearch(closest, sorted(opts,
-                                                                    key=lambda x: remove_dollar_and_comma(
-                                                                        x.text)),
-                                                    lambda x: remove_dollar_and_comma(x.text))].text
+                    closest = self.__binsearch(closest, sorted(opts,
+                                                               key=lambda x: remove_dollar_and_comma(
+                                                                   x.text)),
+                                               lambda x: remove_dollar_and_comma(x.text))
 
-                    price_drop.select_by_visible_text(closest)
+                    price_drop.select_by_index(closest - 1)
 
                 # endregion
 
@@ -305,11 +342,11 @@ class CarsDotCom(Source):
 
                     opts = ymin_drop.options
 
-                    closest = opts[self.__binsearch(closest, sorted(opts,
-                                                                    key=lambda x: int(x.text)),
-                                                    lambda x: int(x.text))]
+                    closest = self.__binsearch(closest, sorted(opts,
+                                                               key=lambda x: int(x.text)),
+                                               lambda x: int(x.text))
 
-                    ymin_drop.select_by_visible_text(str(closest))
+                    ymin_drop.select_by_index(closest - 1)
 
                 # max
                 if (is_model and model.year_end > 0) or s.year_end > 0:
@@ -317,17 +354,16 @@ class CarsDotCom(Source):
 
                     opts = ymax_drop.options
 
-                    closest = opts[self.__binsearch(closest, sorted(opts,
-                                                                    key=lambda x: int(x.text)),
-                                                    lambda x: int(x.text))]
+                    closest = self.__binsearch(closest, sorted(opts,
+                                                               key=lambda x: int(x.text)),
+                                               lambda x: int(x.text))
 
-                    ymax_drop.select_by_visible_text(str(closest))
+                    ymax_drop.select_by_index(closest - 1)
 
                 # endregion
 
                 # region Handles the mileage
 
-                # TODO
                 mileage_element = self.browser.find_element_by_id("mlgId")
                 mileage_radios = mileage_element.find_elements_by_css_selector("li.radio")
                 mileage_radios = [x for x in mileage_radios if
@@ -340,25 +376,28 @@ class CarsDotCom(Source):
                     closest = model.mileage if is_model else s.mileage
 
                     closest = mileage_ids[self.__binsearch(closest, sorted(mileage_list,
-                                                                            key=lambda x: int(
-                                                                                remove_dollar_and_comma(
-                                                                                    x.text.split()[0]))),
-                                                            lambda x: int(
-                                                                remove_dollar_and_comma(
+                                                                           key=lambda x: int(
+                                                                               remove_dollar_and_comma(
+                                                                                   x.text.split()[0]))),
+                                                           lambda x: int(
+                                                               remove_dollar_and_comma(
                                                                     x.text.split()[0])))]
 
-                    self.browser.find_element_by_css_selector("input[id='{}']".format(closest)).click()
+                    self.browser.find_element_by_css_selector("label[for='{}']".format(closest)).click()
 
                 # endregion
 
                 # endregion
+
+                self.__find_car_list()
 
         pass
 
 
 if __name__ == "__main__":
 
+    callback = "aaronjencks@gmail.com"
     searches = [Search("Toyota", ["Camry", "Avalon"], price_end=8000)]
 
-    guru = CarGurus(searches)
-    cars = CarsDotCom(searches)
+    guru = CarGurus(callback, searches)
+    cars = CarsDotCom(callback, searches)
