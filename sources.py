@@ -8,12 +8,15 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.action_chains import ActionChains
 
+from email_util import EmailServer
+
 from tqdm import tqdm
 
 
 class CarGurus(EmailingSource):
-    def __init__(self, callback_email: str, searches: list, browser=None, auto_start: bool = True):
-        super().__init__(callback_email, searches, browser, auto_start=False)
+    def __init__(self, callback_email: str, searches: list,
+                 browser=None, email_server: EmailServer = None, auto_start: bool = True):
+        super().__init__(callback_email, searches, browser, email_server, auto_start=False)
 
         self.value_source_url = "https://www.cargurus.com/Cars/forsale"
 
@@ -49,9 +52,13 @@ class CarGurus(EmailingSource):
 
                 stats = car.find_element_by_class_name("cg-dealFinder-result-stats").find_elements_by_tag_name("p")
 
-                mileage = stats[3].text.split(':')[1].split()[0]
-                price = stats[0].find_element_by_class_name(
-                    "cg-dealFinder-priceAndMoPayment").find_element_by_tag_name("span").text
+                for stat in stats:
+                    identifier = stat.text.split(':')[0]
+                    if identifier == "Mileage":
+                        mileage = stat.text.split(':')[1].split()[0]
+                    if identifier == "Price":
+                        price = stat.find_element_by_class_name(
+                            "cg-dealFinder-priceAndMoPayment").find_element_by_tag_name("span").text
 
                 c = Car(title[1], title[2], int(title[0]),                                       # make, model, year
                         remove_dollar_and_comma(mileage) if mileage != "N/A" else -1,            # mileage
@@ -177,8 +184,9 @@ class CarGurus(EmailingSource):
 
 
 class CarsDotCom(EmailingSource):
-    def __init__(self, callback_email: str, searches: list, browser=None, auto_start: bool = True):
-        super().__init__(callback_email, searches, browser, auto_start=False)
+    def __init__(self, callback_email: str, searches: list,
+                 browser=None, email_server: EmailServer = None, auto_start: bool = True):
+        super().__init__(callback_email, searches, browser, email_server, auto_start=False)
 
         self.value_source_url = "https://www.cars.com"
 
