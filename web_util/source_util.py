@@ -3,6 +3,8 @@ from email_util import EmailServer
 
 from selenium import webdriver
 
+import json
+
 
 class Car:
     def __init__(self, make: str, model: str, year: int, mileage: int, price: int, url: str):
@@ -23,6 +25,10 @@ class Car:
         else:
             return False
 
+    def to_json(self) -> dict:
+        return {'type': 'Car', 'make': self.make, 'model': self.model, 'year': self.year,
+                'mileage': self.mileage, 'price': self.price, 'url': self.url}
+
 
 class Model:
     def __init__(self, name: str, mileage: int = 100000, years: tuple = (-1, -1)):
@@ -30,6 +36,10 @@ class Model:
         self.mileage = mileage
         self.year_start = years[0]
         self.year_end = years[1]
+
+    def to_json(self) -> dict:
+        return {'type': 'Model', 'name': self.name, 'mileage': self.mileage,
+                'year_start': self.year_start, 'year_end': self.year_end}
 
 
 class Search:
@@ -44,6 +54,21 @@ class Search:
         self.distance = distance
         self.price_start = price_start
         self.price_end = price_end
+
+    def to_json(self) -> dict:
+        result = {'type': 'Search', 'make': self.make, 'models': [],
+                  'year_start': self.year_start, 'year_end': self.year_end, 'mileage': self.mileage,
+                  'zip': self.zip, 'distance': self.distance,
+                  'price_start': self.price_start, 'price_end': self.price_end}
+
+        for m in self.models:
+            if isinstance(m, Model):
+                result['models'].append(m.to_json())
+            else:
+                # Should be a string
+                result['models'].append({'type': 'string', 'value': m})
+
+        return result
 
 
 class Source:
@@ -69,6 +94,10 @@ class Source:
 
     def find_new_listings(self):
         pass
+
+    def to_json(self) -> dict:
+        return {'type': 'Source', 'searches': [x.to_json() for x in self.searches],
+                'cars': [x.to_json() for x in self.cars_db], 'timeout_delay': self.timeout_delay}
 
 
 class EmailingSource(Source):
@@ -118,6 +147,14 @@ class EmailingSource(Source):
         email = self.create_email(car)
 
         self.email_server.send_mail(self.email_callback, str(car), email)
+
+    def to_json(self) -> dict:
+        result = super().to_json()
+        
+        result['server'] = self.email_server.to_json()
+        result['email callback'] = self.email_callback
+
+        return result
 
 
 

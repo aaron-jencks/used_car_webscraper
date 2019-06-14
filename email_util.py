@@ -4,6 +4,11 @@ import ssl
 from email.mime.text import MIMEText
 
 
+def mime_to_json(m: MIMEText) -> dict:
+    """Converts a MIMEText email object into a dict for json"""
+    return {'type': 'MIME', 'subject': m['Subject'], 'from': m['From'], 'to': m['To']}
+
+
 class EmailServer:
     """Wraps the email protocol of python into an easy to use api"""
 
@@ -60,3 +65,7 @@ class EmailServer:
             self.server.sendmail(self.sender, tgt, message.as_string())
         else:
             self.backlog.append(message)
+
+    def to_json(self) -> dict:
+        return {'type': 'EmailServer', 'sender': self.sender, 'password': self.password, 'smtp': self.smtp,
+                'port': self.port, 'backlog': [mime_to_json(x) for x in self.backlog]}
