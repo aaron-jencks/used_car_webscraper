@@ -6,18 +6,29 @@ from email.mime.text import MIMEText
 
 def mime_to_json(m: MIMEText) -> dict:
     """Converts a MIMEText email object into a dict for json"""
-    return {'type': 'MIME', 'subject': m['Subject'], 'from': m['From'], 'to': m['To']}
+    return {'type': 'MIME', 'subject': m['Subject'], 'from': m['From'], 'to': m['To'], 'msg': m.get_payload()}
+
+
+def mime_from_json(data: dict) -> MIMEText:
+    """Converts a MIMEText email object into a dict for json"""
+    result = MIMEText(data['msg'], 'html')
+
+    result['Subject'] = data['subject']
+    result['From'] = data['from']
+    result['To'] = data['To']
+
+    return result
 
 
 class EmailServer:
     """Wraps the email protocol of python into an easy to use api"""
 
     def __init__(self, sender_email: str = "noreply.aaronjencks@gmail.com",
-                 smtp: str = "smtp.gmail.com", port: int = 465):
+                 smtp: str = "smtp.gmail.com", port: int = 465, password: str = ''):
         """Creates an smtp server with the given sender email and smtp address,
         requires that you login upon initialization"""
         self.sender = sender_email
-        self.password = input("Email Password? ")
+        self.password = input("Email Password? ") if password == '' else password
         self.smtp = smtp
         self.port = port
         self.ssl_context = ssl.create_default_context()
@@ -66,6 +77,19 @@ class EmailServer:
         else:
             self.backlog.append(message)
 
+    # region JSON
+
     def to_json(self) -> dict:
         return {'type': 'EmailServer', 'sender': self.sender, 'password': self.password, 'smtp': self.smtp,
                 'port': self.port, 'backlog': [mime_to_json(x) for x in self.backlog]}
+
+    @staticmethod
+    def from_json(data: dict):
+        if data['type'] == 'EmailServer':
+            result = EmailServer(data['sender'], data['smtp'], data['port'], password=data['password'])
+
+            result.backlog = [mime_from_json(x) for x in data['backlog']]
+
+            return result
+
+    # endregion

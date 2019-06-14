@@ -3,8 +3,6 @@ from email_util import EmailServer
 
 from selenium import webdriver
 
-import json
-
 
 class Car:
     def __init__(self, make: str, model: str, year: int, mileage: int, price: int, url: str):
@@ -25,9 +23,17 @@ class Car:
         else:
             return False
 
+    # region JSON
+
     def to_json(self) -> dict:
         return {'type': 'Car', 'make': self.make, 'model': self.model, 'year': self.year,
                 'mileage': self.mileage, 'price': self.price, 'url': self.url}
+
+    @staticmethod
+    def from_json(data: dict):
+        return Car(data['make'], data['model'], data['year'], data['mileage'], data['price'], data['url'])
+
+    # endregion
 
 
 class Model:
@@ -37,9 +43,17 @@ class Model:
         self.year_start = years[0]
         self.year_end = years[1]
 
+    # region JSON
+
     def to_json(self) -> dict:
         return {'type': 'Model', 'name': self.name, 'mileage': self.mileage,
                 'year_start': self.year_start, 'year_end': self.year_end}
+
+    @staticmethod
+    def from_json(data: dict):
+        return Model(data['name'], data['mileage'], (data['year_start'], data['year_end']))
+
+    # endregion
 
 
 class Search:
@@ -55,6 +69,8 @@ class Search:
         self.price_start = price_start
         self.price_end = price_end
 
+    # region JSON
+
     def to_json(self) -> dict:
         result = {'type': 'Search', 'make': self.make, 'models': [],
                   'year_start': self.year_start, 'year_end': self.year_end, 'mileage': self.mileage,
@@ -69,6 +85,21 @@ class Search:
                 result['models'].append({'type': 'string', 'value': m})
 
         return result
+
+    @staticmethod
+    def from_json(data: dict):
+        result = Search(data['make'], [], data['mileage'], (data['year_start'], data['year_end']),
+                        data['zip'], data['distance'], data['price_start'], data['price_end'])
+
+        for m in data['models']:
+            if m['type'] == 'string':
+                result.models.append(m['value'])
+            elif m['type'] == 'Model':
+                result.models.append(Model.from_json(m))
+
+        return result
+
+    # endregion
 
 
 class Source:
@@ -95,9 +126,24 @@ class Source:
     def find_new_listings(self):
         pass
 
+    # region JSON
+
     def to_json(self) -> dict:
         return {'type': 'Source', 'searches': [x.to_json() for x in self.searches],
                 'cars': [x.to_json() for x in self.cars_db], 'timeout_delay': self.timeout_delay}
+
+    @staticmethod
+    def from_json(data: dict):
+        searches = [Search.from_json(x) for x in data['searches']]
+
+        # TODO Add support for other browsers
+        result = Source(searches, auto_start=False)
+        result.timeout_delay = data['timeout_delay']
+        result.cars_db = [Car.from_json(x) for x in data['cars']]
+
+        return result
+
+    # endregion
 
 
 class EmailingSource(Source):
@@ -148,13 +194,31 @@ class EmailingSource(Source):
 
         self.email_server.send_mail(self.email_callback, str(car), email)
 
+    # region JSON
+
     def to_json(self) -> dict:
         result = super().to_json()
-        
+
         result['server'] = self.email_server.to_json()
         result['email callback'] = self.email_callback
 
         return result
+
+    @staticmethod
+    def from_json(data: dict):
+        searches = [Search.from_json(x) for x in data['searches']]
+
+        # TODO Add support for other browsers
+        result = EmailingSource(searches, auto_start=False)
+        result.timeout_delay = data['timeout_delay']
+        result.cars_db = [Car.from_json(x) for x in data['cars']]
+
+        result.email_server = EmailServer.from_json(data['server'])
+        result.email_callback = data['email callback']
+
+        return result
+
+    # endregion
 
 
 
