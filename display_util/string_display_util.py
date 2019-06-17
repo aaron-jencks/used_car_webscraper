@@ -1,10 +1,11 @@
 import shutil
 from colorama import Fore
-from enum import Enum
 import os
 
 import sys
 import traceback
+
+from .list_display_util import get_list_entry_str, ListTypes
 
 
 def clear():
@@ -16,6 +17,12 @@ def clear():
         os.system("clear")
     else:
         print("\n"*120)
+
+
+def replace_tabs(string: str, tab_width: int = 4) -> str:
+    """Takes an input string and a desired tab width and replaces each \\t in the string with ' '*tab_width."""
+
+    return string.replace('\t', ' '*tab_width)
 
 
 def centered_text(text: str, length: int = -1) -> str:
@@ -102,27 +109,14 @@ def hanging_indent(string: str, tab_width: int = 4) -> str:
     return result
 
 
-class ListTypes(Enum):
-    NUMERIC_ORDERED = 0
-    ALPHA_ORDERED = 1
-    UNORDERED = 2
-
-
-def print_list(arr: list, format: str = "{}: {}", type: ListTypes = ListTypes.NUMERIC_ORDERED, **kwargs):
+def print_list(arr: list, format: str = "{}: {}", l_type: ListTypes = ListTypes.NUMERIC_ORDERED, **kwargs):
     """Prints a list to the screen in a neat fashion.
 
     format is a string used to determine layout of the element, default is '{}: {}' where the first is the index,
         and the second is the element."""
 
-    if type == ListTypes.NUMERIC_ORDERED:
-        for i, e in enumerate(arr):
-            print(format.format(i, e), **kwargs)
-    elif type == ListTypes.ALPHA_ORDERED:
-        for i, e in enumerate(arr):
-            print(format.format(chr(ord('a') + i), e), **kwargs)
-    else:
-        for e in arr:
-            print(format.format('•', e), **kwargs)
+    for i, e in enumerate(arr):
+        print(get_list_entry_str(e, i, format, l_type), **kwargs)
 
 
 def print_info(string: str, begin: str = '', **kwargs):
@@ -142,7 +136,7 @@ def print_exception(begin: str = '', **kwargs):
     First line contains '[ERROR] Exception was thrown: <exception string>'
     Second line and on contains the full typical python traceback."""
     et, ev, tb = sys.exc_info()
-    exc = "Exception was thrown: {}\n".format(e)
+    exc = begin + "Exception was thrown: {}\n".format(ev)
     for l in traceback.format_exception(et, ev, tb):
         exc += l
     print_warning(exc)
