@@ -1,5 +1,8 @@
 from .string_display_util import *
+from .list_display_util import *
 from colorama import Fore
+
+from  copy import deepcopy
 
 
 def get_constrained_input(prompt: str, constraint) -> str:
@@ -71,3 +74,105 @@ def console_dash_menu(options: dict, list_format: str = "{}: {}", title: str = "
     # Finds the said choice and returns it
     index = valid.index(choice)
     return list(options.keys())[index]
+
+
+def list_edit_menu(content: list, create_new_func, edit_func,
+                   title: str = "", centered_title: bool = True, menu_entry_format: str = "{}: {}",
+                   dash: str = '#', tab_width: int = 4,
+                   l_type: ListTypes = ListTypes.NUMERIC_ORDERED,
+                   inplace: bool = False, deep_copy: bool = False,
+                   **kwargs) -> list:
+    """Creates a menu for editting the list of items provided, displays the list according to the list type provided.
+
+    Arguments:
+
+    create_new_func: specifies a function used to create a new object for the list, returns the new object to insert.
+
+    edit_func: specifies a function used to edit a current element, should return a copy to replace the original with.
+
+    inplace: specifies if the operation should be performed on the existing memory object of content, or on a copy.
+
+    deep_copy: specifies whether to perform a deepcopy of the list for the operation, or a shallow copy,
+        only relevant if inplace is False.
+
+    Any extra keyword arguments are passed along to the create and edit functions"""
+
+    def init_lists(c: list) -> tuple:
+        """Creates the selection dict for the list and the list of entry strings and finds the max length"""
+        sd = {}
+        es = []
+        for i, e in enumerate(c):
+            ef = get_list_entry_str(replace_tabs(str(e), tab_width), i, l_type=l_type)
+            es.append(ef)
+            sd[i] = ef
+
+        ml = max([len(x) for x in es])
+
+        return sd, es, ml
+
+    selection_dict, entries, max_length = init_lists(content)
+
+    def display_header():
+        """Clears the terminal and displays the header information for the menu"""
+        clear()
+        if len(title) > 0:
+            print(centered_text(title, max_length) if centered_title else title)
+            print_dashes(max_length, dash)
+
+        for e in entries:
+            print(hanging_indent(e, tab_width))
+
+        print_dashes(max_length, dash)
+
+    display_header()
+    choice = console_dash_menu({1: 'Create', 2: 'Edit', 3: 'Delete', 4: 'Exit'}, menu_entry_format,
+                               "List Options", centered_title, dash, tab_width)
+
+    def choose_selection():
+        """Prompts the user to select an element out of the current content list"""
+        clear()
+        return console_dash_menu(selection_dict, menu_entry_format, "Which element would you like to choose?",
+                                 centered_title, dash, tab_width)
+
+    # Sets up the copy of the list if inplace if False
+    temp = (deepcopy(content) if deep_copy else content[:]) if not inplace else []
+
+    while choice != 4:
+        if choice == 1:
+            # Create new element
+            el = create_new_func(**kwargs)
+            if inplace:
+                content.append(el)
+            else:
+                temp.append(el)
+
+        elif choice == 2:
+            # Edit an existing element
+            index = choose_selection()
+            el = edit_func(content[index] if inplace else temp[index])
+            if inplace:
+                content[index] = el
+            else:
+                temp[index] = el
+
+        elif choice == 3:
+            # Delete an existing element
+            index = choose_selection()
+            if inplace:
+                content.pop(index)
+            else:
+                temp.pop(index)
+
+        if inplace:
+            selection_dict, entries, max_length = init_lists(content)
+        else:
+            selection_dict, entries, max_length = init_lists(temp)
+
+        display_header()
+        choice = console_dash_menu({1: 'Create', 2: 'Edit', 3: 'Delete', 4: 'Exit'}, menu_entry_format,
+                                   "List Options", centered_title, dash, tab_width)
+
+    if inplace:
+        return content
+    else:
+        return temp
