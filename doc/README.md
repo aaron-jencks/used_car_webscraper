@@ -1,0 +1,1 @@
+## This folder contains the contents used to generate the README for the general project

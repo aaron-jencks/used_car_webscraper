@@ -25,8 +25,9 @@ class PollingServer:
                     s.find_new_listings()
             else:
                 print_notification("Waiting for the next update in {} seconds".format(
-                    round(self.interval * 60 - (time.time() - start), 2)), end='\r')
-                time.sleep(self.interval * 60 - (time.time() - start))
+                    round(self.interval * 60 - (time.time() - start), 2)), begin='\r', end='')
+                time.sleep(1)
+                # time.sleep(self.interval * 60 - (time.time() - start))
 
     def start(self):
         self.is_running = True
