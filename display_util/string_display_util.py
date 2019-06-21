@@ -131,6 +131,12 @@ def print_warning(string: str, begin: str = '', **kwargs):
     print(begin + Fore.RED + "[WARNING] " + string + Fore.RESET, **kwargs)
 
 
+def print_error(string: str, begin: str = '', **kwargs):
+    """Prints an error prompt to the console
+    error prompts have '[ERROR]' as a prefix and are printed in Red."""
+    print(begin + Fore.RED + "[ERROR] " + string + Fore.RESET, **kwargs)
+
+
 def print_exception(begin: str = '', **kwargs):
     """Prints the current exception out to the console using the '[ERROR]' as a prefix and is printed in red.
     First line contains '[ERROR] Exception was thrown: <exception string>'

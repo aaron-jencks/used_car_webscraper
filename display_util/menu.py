@@ -1,8 +1,8 @@
-from .string_display_util import *
-from .list_display_util import *
+from .string_display_util import print_error, print_dashes, hanging_indent, centered_text, replace_tabs, clear
+from .list_display_util import ListTypes, get_list_entry_str
 from colorama import Fore
 
-from  copy import deepcopy
+from copy import deepcopy
 
 
 def get_constrained_input(prompt: str, constraint) -> str:
@@ -11,7 +11,7 @@ def get_constrained_input(prompt: str, constraint) -> str:
 
     temp = input(Fore.GREEN + prompt + Fore.RESET)
     while not constraint(temp):
-        print_warning("Invalid Response!")
+        print_error("Invalid Response!")
         temp = input(Fore.GREEN + prompt + Fore.RESET)
 
     return temp
@@ -23,7 +23,7 @@ def yes_no_prompt(prompt: str = "") -> bool:
 
     choice = input(prompt + "(y/n) ")
     while choice != 'y' and choice != 'Y' and choice != 'n' and choice != 'N':
-        print_warning("Invalid choice entered, please enter either 'y' or 'n'.")
+        print_error("Invalid choice entered, please enter either 'y' or 'n'.")
         choice = input(prompt + "(y/n) ")
 
     return choice == 'y' or choice == 'Y'
